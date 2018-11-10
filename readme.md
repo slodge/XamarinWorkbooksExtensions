@@ -42,9 +42,9 @@ These options are available
 - customCss - default `null` - provide css style for the table. If null, then the following CSS is inserted
 
 ```
-   .slodgeTable {{ border-collapse: collapse; }} 
-   .slodgeTable th {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }} 
-   .slodgeTable td {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }}
+   .slodgeTable { border-collapse: collapse; } 
+   .slodgeTable th { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; } 
+   .slodgeTable td { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }
 
 ```
 
@@ -78,9 +78,9 @@ These options are available
 - customCss - default `null` - provide css style for the table. If null, then the following CSS is inserted
 
 ```
-   .slodgeTable {{ border-collapse: collapse; }} 
-   .slodgeTable th {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }} 
-   .slodgeTable td {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }}
+   .slodgeTable { border-collapse: collapse; } 
+   .slodgeTable th { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; } 
+   .slodgeTable td { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }
 
 ```
 
