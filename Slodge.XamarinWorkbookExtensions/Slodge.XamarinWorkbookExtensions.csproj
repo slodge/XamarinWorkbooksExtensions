@@ -13,6 +13,7 @@
     <Description>This project provides some extensions to help you visualise your Workbook outputs.
 
 </Description>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

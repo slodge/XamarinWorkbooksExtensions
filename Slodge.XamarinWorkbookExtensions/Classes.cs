@@ -334,8 +334,19 @@ namespace Slodge.XamarinWorkbookExtensions
             RenderOverflowRows(tableText, shownColumns, rowCount);
             tableText.Append("</tbody>");
             tableText.Append("</table>");
+            RenderOverflowColumns(tableText, overflowColumns);
 
             return tableText.ToString();
+        }
+
+        static void RenderOverflowColumns(StringBuilder tableText, IList<IValueGetter<TRow>> overflowColumns)
+        {
+            if (overflowColumns.Any())
+            {
+                tableText.Append("<div>Columns not shown: ");
+                tableText.Append(string.Join(", ", overflowColumns.Select(p => p.Title)));
+                tableText.Append("</div>");
+            }
         }
 
         protected virtual void RenderOverflowRows(StringBuilder tableText, List<IValueGetter<TRow>> shownColumns, int rowCount)
