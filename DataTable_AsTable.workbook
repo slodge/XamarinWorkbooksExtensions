@@ -27,6 +27,8 @@ table.Columns.Add(new DataColumn("When", typeof(DateTime)) { AllowDBNull = true 
 table.Rows.Add("Yesterday", DateTime.UtcNow.Date.AddDays(-1));
 table.Rows.Add("Today", DateTime.UtcNow.Date);
 table.Rows.Add("Tomorrow", DateTime.UtcNow.Date.AddDays(1));
+
+table
 ```
 
 That was ugly - let’s try it as a table:

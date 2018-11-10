@@ -26,7 +26,7 @@ var list = new List<Thing>() {
 list.AsTable()
 ```
 
-To run this yourself, see [IEnumerable Table Workbook](IEnumerable AsTable.workbook)
+To run this yourself, see [IEnumerable Table Workbook](IEnumerable_AsTable.workbook)
 
 ![TableIntro](/docs/TableIntro.png)
 
@@ -64,7 +64,7 @@ table.Rows.Add("Tomorrow", DateTime.UtcNow.Date.AddDays(1));
 table.AsTable()
 ```
 
-To run this yourself, see [DataTable Table Workbook](DataTable AsTable.workbook)
+To run this yourself, see [DataTable Table Workbook](DataTable_AsTable.workbook)
 
 ![TableIntro](/docs/DataTableIntro.png)
 
