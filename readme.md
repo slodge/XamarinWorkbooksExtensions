@@ -87,7 +87,7 @@ These options are available
 
 ## Nuget Package
 
-This extension is available in Nuget in TODO - coming real soon..
+This extension is available in Nuget in https://www.nuget.org/packages/Slodge.XamarinWorkbookExtensions/1.0.0 - so nuget install with `Install-Package Slodge.XamarinWorkbookExtensions` 
 
 
 ## Building and Problems...

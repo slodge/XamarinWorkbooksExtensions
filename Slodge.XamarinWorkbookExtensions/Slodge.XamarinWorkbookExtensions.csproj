@@ -2,6 +2,17 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <Company>Stuart Lodge</Company>
+    <Authors>Stuart Lodge</Authors>
+    <Copyright>Stuart Lodge</Copyright>
+    <PackageProjectUrl>https://github.com/slodge/XamarinWorkbooksExtensions</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/slodge/XamarinWorkbooksExtensions</RepositoryUrl>
+    <PackageTags>Xamarin Workbooks</PackageTags>
+    <PackageIconUrl />
+    <PackageLicenseUrl>https://github.com/slodge/XamarinWorkbooksExtensions/blob/master/LICENSE</PackageLicenseUrl>
+    <Description>This project provides some extensions to help you visualise your Workbook outputs.
+
+</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
