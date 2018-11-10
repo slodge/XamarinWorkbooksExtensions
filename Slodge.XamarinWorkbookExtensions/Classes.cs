@@ -244,7 +244,13 @@ namespace Slodge.XamarinWorkbookExtensions
 
         bool TryGetCollectionValue(string propertyName, out int? totalRowCountIfAvailable)
         {
-            var count = typeof(TItem).GetProperty(propertyName,
+            if (_items == null)
+            {
+                totalRowCountIfAvailable = null;
+                return false;
+            }
+
+            var count = _items.GetType().GetProperty(propertyName,
                 BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
             if (count != null && count.PropertyType == typeof(int))
             {
