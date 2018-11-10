@@ -101,6 +101,6 @@ If you can figure out what's happening with .Net Standard 2.0 or with the prerel
 
 ## Roadmap
 
-I hope this project only has a short life... I'm hopeful we can get these extensions (or better!) pushed into "core" Xamarin Workbooks instead.
+I hope this project only has a short life... I'm hopeful we can get these extensions (or better!) pushed into "core" Xamarin Workbooks instead - see work in progress in https://github.com/Microsoft/workbooks/issues/499
 
 There are many possible additional extensions - including ideas for Dictionaries, for more presentation options, for incremental enumerations, ...
