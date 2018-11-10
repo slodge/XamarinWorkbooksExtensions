@@ -8,7 +8,7 @@ Everything here is MIT licensed - but I'm happy to adjust if an alternative woul
 
 We've added an `AsTable()` extension method which renders `IEnumerable<T>` collections to an HTML Table.
 
-##Basic use:
+## Basic use:
 
 ```
 class Thing
@@ -25,8 +25,11 @@ var list = new List<Thing>() {
 
 list.AsTable()
 ```
+To run this yourself, see [Table Workbook](table.workbook)
 
-##Advanced options:
+![TableIntro](/docs/TableIntro.png)
+
+## Advanced options:
 
 These options are available
 - maxColumns - default `10` - the maximum number of properties/fields to show
