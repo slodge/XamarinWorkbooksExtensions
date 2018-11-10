@@ -1,24 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using Xamarin.Interactive;
 using Xamarin.Interactive.CodeAnalysis.Workbooks;
+using Xamarin.Interactive.Representations;
 
-// Dear Xam, please forgive me for invading your namespace ...
-// ... but using your namespace helps the extension "just work"
-// ... and I would love to get `AsTable()` inside the workbooks
-namespace Xamarin.Interactive.CodeAnalysis.Workbooks
+namespace Slodge.XamarinWorkbookExtensions
 {
     public interface IStringifier
     {
-        string Stringify(MemberInfo column, object o);
+        string Stringify(string title, Type type, object o);
     }
 
     public class Stringifier : IStringifier
     {
-        int _maxCellLength = 50;
+        int _maxCellLength;
 
         public int MaxCellLength
         {
@@ -31,9 +30,16 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             }
         }
 
-        public virtual string Stringify(MemberInfo column /* ignored */, object o)
+        public static IStringifier Default => new Stringifier();
+
+        public Stringifier(int maxCellLength = 50)
         {
-            var toReturn = InnerFormat(o);
+            MaxCellLength = maxCellLength;
+        }
+
+        public virtual string Stringify(string title /* ignored */, Type type /* ignored */, object o)
+        {
+            var toReturn = InnerStringify(o);
             if (toReturn != null)
             {
                 if (toReturn.Length > MaxCellLength)
@@ -44,7 +50,7 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             return toReturn;
         }
 
-        protected virtual string InnerFormat(object o)
+        protected virtual string InnerStringify(object o)
         {
             switch (o)
             {
@@ -69,14 +75,15 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
         }
     }
 
-    interface IValueGetter<in TItem>
+
+    public interface IValueGetter<in TItem>
     {
         string Title { get; }
+        Type ValueType { get; }
         object GetValue(TItem item);
-        MemberInfo MemberInfo { get; }
     }
 
-    class PropertyValueGetter<TItem>
+    public class PropertyValueGetter<TItem>
             : IValueGetter<TItem>
     {
         readonly PropertyInfo _propertyInfo;
@@ -86,9 +93,9 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             _propertyInfo = propertyInfo;
         }
 
-        public MemberInfo MemberInfo => _propertyInfo;
-
         public string Title => _propertyInfo.Name;
+
+        public Type ValueType => _propertyInfo.PropertyType;
 
         public object GetValue(TItem item)
         {
@@ -97,7 +104,7 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
         }
     }
 
-    class FieldValueGetter<TItem>
+    public class FieldValueGetter<TItem>
         : IValueGetter<TItem>
     {
         readonly FieldInfo _fieldInfo;
@@ -107,9 +114,9 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             _fieldInfo = fieldInfo;
         }
 
-        public MemberInfo MemberInfo => (_fieldInfo);
-
         public string Title => _fieldInfo.Name;
+
+        public Type ValueType => _fieldInfo.FieldType;
 
         public object GetValue(TItem item)
         {
@@ -118,15 +125,144 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
         }
     }
 
-    public static class SlodgeExtensions
+    public class DataTableTableGenerator
+        : BaseTableGenerator<DataRow>
     {
-        static IEnumerable<IValueGetter<TItem>> ValuesGetters<TItem>(bool includeProperties, bool includeFields)
+        readonly DataTable _table;
+
+        public DataTableTableGenerator(
+            DataTable table,
+            int maxColumns = 10, 
+            int maxRows = 10, 
+            IStringifier stringifier = null, 
+            string customTableClassName = null, 
+            string customCss = null) 
+            : base(maxColumns, maxRows, stringifier, customTableClassName, customCss)
+        {
+            _table = table;
+        }
+
+        protected override IEnumerable<DataRow> GetRows(int maxRows)
+        {
+            return _table.Rows.Cast<DataRow>().Take(maxRows);
+        }
+
+        protected override bool IsNull => _table == null;
+
+        protected override int? TotalRowCountIfAvailable => _table.Rows.Count;
+
+        protected override IEnumerable<IValueGetter<DataRow>> ValueGetters()
+        {
+            if (_table == null)
+                yield break;
+
+            foreach (DataColumn c in _table.Columns)
+            {
+                yield return new DataColumnValueGetter(c);
+            }
+        }
+    }
+
+    public class DataColumnValueGetter 
+        : IValueGetter<DataRow>
+    {
+        readonly DataColumn _dataColumn;
+
+        public DataColumnValueGetter(DataColumn dataColumn)
+        {
+            _dataColumn = dataColumn;
+        }
+
+        public string Title => _dataColumn.Caption ?? _dataColumn.ColumnName;
+
+        public Type ValueType
+        {
+            get
+            {
+                var type = _dataColumn.DataType;
+                if (_dataColumn.AllowDBNull && type.IsValueType)
+                    return typeof(Nullable<>).MakeGenericType(type);
+                return type;
+            }
+        }
+
+        public object GetValue(DataRow item)
+        {
+            var result = item[_dataColumn];
+            if (_dataColumn.AllowDBNull && result == DBNull.Value)
+                return null;
+            return result;
+        }
+    }
+
+    public class EnumerableTableGenerator<TItem>
+        : BaseTableGenerator<TItem>
+    {
+        readonly IEnumerable<TItem> _items;
+        readonly bool _includeProperties;
+        readonly bool _includeFields;
+
+        public EnumerableTableGenerator(
+            IEnumerable<TItem> items,
+            bool includeProperties = true,
+            bool includeFields = false,
+            int maxColumns = 10, 
+            int maxRows = 10, 
+            IStringifier stringifier = null, 
+            string customTableClassName = null, 
+            string customCss = null) 
+            : base(maxColumns, maxRows, stringifier, customTableClassName, customCss)
+        {
+            _items = items;
+            _includeProperties = includeProperties;
+            _includeFields = includeFields;
+        }
+
+        protected override IEnumerable<TItem> GetRows(int maxRows)
+        {
+            return _items?.Take(maxRows);
+        }
+
+        protected override bool IsNull => _items == null;
+
+        protected override int? TotalRowCountIfAvailable
+        {
+            get
+            {
+                if (_items == null)
+                    return null;
+
+                if (TryGetCollectionValue("Count", out var totalCountIfAvailable))
+                    return totalCountIfAvailable;
+
+                if (TryGetCollectionValue("Length", out var totalLengthIfAvailable))
+                    return totalLengthIfAvailable;
+
+                return null;
+            }
+        }
+
+        bool TryGetCollectionValue(string propertyName, out int? totalRowCountIfAvailable)
+        {
+            var count = typeof(TItem).GetProperty(propertyName,
+                BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
+            if (count != null && count.PropertyType == typeof(int))
+            {
+                totalRowCountIfAvailable = (int) count.GetValue(_items);
+                return true;
+            }
+
+            totalRowCountIfAvailable = null;
+            return false;
+        }
+
+        protected override IEnumerable<IValueGetter<TItem>> ValueGetters()
         {
             var type = typeof(TItem);
             var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
-            if (includeProperties)
+            if (_includeProperties)
                 flags |= BindingFlags.GetProperty;
-            if (includeFields)
+            if (_includeFields)
                 flags |= BindingFlags.GetField;
 
             var members = type.GetMembers(flags);
@@ -146,96 +282,108 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
                 }
             }
         }
+    }
 
-        public static Representations.VerbatimHtml AsTable<T>(
-                            this IEnumerable<T> items,
-                            int maxColumns = 10,
-                            int maxRows = 10,
-                            bool includeProperties = true,
-                            bool includeFields = false,
-                            IStringifier stringifier = null,
-                            string customTableClassName = null,
-                            string customCss = null)
+    public abstract class BaseTableGenerator<TRow>
+    {
+        readonly int _maxColumns;
+        readonly int _maxRows;
+        readonly IStringifier _stringifier;
+        readonly string _customTableClassName;
+        readonly string _customCss;
+
+        protected BaseTableGenerator(
+            int maxColumns = 10,
+            int maxRows = 10,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
         {
-            if (items == null)
+            _maxColumns = maxColumns;
+            _maxRows = maxRows;
+            _stringifier = stringifier ?? new Stringifier();
+            _customTableClassName = customTableClassName ?? "slodgeTable";
+            _customCss = customCss ?? @".slodgeTable { border-collapse: collapse; } 
+.slodgeTable th { border: 0px; padding-left: 4px; padding-right: 4px; text-align:left; }
+.slodgeTable td { border: 0px; padding-left: 4px; padding-right: 4px; text-align:left; }
+";
+        }
+
+        public virtual VerbatimHtml GenerateHtml()
+        {
+            return GeneratHtmlText().AsHtml();
+        }
+
+        public virtual string GeneratHtmlText()
+        {
+            if (IsNull)
             {
-                return "-- null --".AsHtml();
+                return "-- null --";
             }
 
-            stringifier = stringifier ?? new Stringifier();
-            customTableClassName = customTableClassName ?? "slodgeTable";
-            customCss = customCss ?? @"
-   .slodgeTable {{ border-collapse: collapse; }} 
-   .slodgeTable th {{ border: 0px solid #ddd; padding-left: 6px; padding-right: 6px; text-align:left; }} 
-   .slodgeTable td {{ border: 0px solid #ddd; padding-left: 6px; padding-right: 6px; text-align:left; }}
-";
-
-            var getters = ValuesGetters<T>(includeProperties, includeFields).ToList();
-            var shownColumns = getters.Take(maxColumns).ToList();
-            var overflowColumns = getters.Skip(maxColumns).ToList();
+            var columns = ValueGetters().ToList();
+            var shownColumns = columns.Take(_maxColumns).ToList();
+            var overflowColumns = columns.Skip(_maxColumns).ToList();
 
             var tableText = new System.Text.StringBuilder();
-            tableText.Append($@"<style>  
-    { customCss }
-   </style>");
-
-            tableText.Append($"<table class='{customTableClassName}'>");
-            tableText.Append("<thead><tr>");
-            tableText.Append($"<th>#</th>");
-            foreach (var p in shownColumns)
-            {
-                tableText.Append($"<th>{p.Title}</th>");
-            }
-            tableText.Append("</tr></thead>");
-
+            tableText.Append($@"<style>{ _customCss }</style>");
+            tableText.Append($"<table class='{_customTableClassName}'>");
+            RenderHeaderRow(tableText, shownColumns);
             tableText.Append("<tbody>");
-            var rowCount = 0;
-            foreach (var i in items.Take(maxRows))
-            {
-                tableText.Append("<tr>");
-                tableText.Append($"<td>{rowCount}</td>");
-                foreach (var p in shownColumns)
-                {
-                    var t = stringifier.Stringify(p.MemberInfo, p.GetValue(i));
-                    tableText.Append($"<td>{t}</td>");
-                }
-                tableText.Append("</tr>");
-                rowCount++;
-            }
+            var rowCount = RenderDetailRows(tableText, shownColumns);
+            RenderOverflowRows(tableText, shownColumns, rowCount);
+            tableText.Append("</tbody>");
+            tableText.Append("</table>");
 
-            if (rowCount >= maxRows)
+            return tableText.ToString();
+        }
+
+        protected virtual void RenderOverflowRows(StringBuilder tableText, List<IValueGetter<TRow>> shownColumns, int rowCount)
+        {
+            if (rowCount >= _maxRows)
             {
                 var colCount = shownColumns.Count();
-                var totalRowCount = ReadCountOrLengthPropertyIfAvailable(items);
-                if (totalRowCount != null)
+                var totalRowCount = TotalRowCountIfAvailable;
+                if (totalRowCount.HasValue)
                 {
                     if (totalRowCount.Value > rowCount)
                     {
                         var overflowRowCount = totalRowCount.Value - rowCount;
                         var overflowRowText = $"{overflowRowCount} more row{(overflowRowCount > 1 ? "s" : "")}";
-                        GenerateOverflowRow<T>(tableText, colCount, overflowRowText);
+                        RenderOverflowRow(tableText, colCount, overflowRowText);
                     }
                 }
                 else
                 {
                     var overflowRowText = $"Enumeration limited to {rowCount} rows";
-                    GenerateOverflowRow<T>(tableText, colCount, overflowRowText);
+                    RenderOverflowRow(tableText, colCount, overflowRowText);
                 }
             }
-
-            tableText.Append("</tbody>");
-            tableText.Append("</table>");
-
-            if (overflowColumns.Any())
-            {
-                tableText.Append("<div>Columns not shown: ");
-                tableText.Append(string.Join(", ", overflowColumns.Select(p => p.Title)));
-                tableText.Append("</div>");
-            }
-            return tableText.ToString().AsHtml();
         }
 
-        static void GenerateOverflowRow<T>(StringBuilder tableText, int colCount, string overflowText)
+        protected virtual int RenderDetailRows(StringBuilder tableText, List<IValueGetter<TRow>> shownColumns)
+        {
+            var rowCount = 0;
+            foreach (var row in GetRows(_maxRows))
+            {
+                tableText.Append("<tr>");
+                tableText.Append($"<td>{rowCount}</td>");
+                foreach (var p in shownColumns)
+                {
+                    var t = _stringifier.Stringify(p.Title, p.ValueType, p.GetValue(row));
+                    tableText.Append($"<td>{t}</td>");
+                }
+
+                tableText.Append("</tr>");
+                rowCount++;
+            }
+
+            return rowCount;
+        }
+
+        protected abstract IEnumerable<TRow> GetRows(int maxRows);
+
+        protected virtual void RenderOverflowRow(StringBuilder tableText, int colCount, string overflowText)
         {
             tableText.Append("<tr>");
             tableText.Append($"<td></td>");
@@ -243,21 +391,20 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             tableText.Append("</tr>");
         }
 
-        static int? ReadCountOrLengthPropertyIfAvailable<T>(this IEnumerable<T> items)
+        protected virtual void RenderHeaderRow(StringBuilder tableText, List<IValueGetter<TRow>> shownColumns)
         {
-            if (items == null)
-                return null;
+            tableText.Append("<thead><tr>");
+            tableText.Append($"<th>#</th>");
+            foreach (var p in shownColumns)
+            {
+                tableText.Append($"<th>{p.Title}</th>");
+            }
 
-            var type = items.GetType();
-            var count = type.GetProperty("Count", BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
-            if (count != null && count.PropertyType == typeof(int))
-                return (int)count.GetValue(items);
-
-            var length = type.GetProperty("Length", BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
-            if (length != null && length.PropertyType == typeof(int))
-                return (int)length.GetValue(items);
-
-            return null;
+            tableText.Append("</tr></thead>");
         }
+
+        protected abstract bool IsNull { get; }
+        protected abstract int? TotalRowCountIfAvailable { get; }
+        protected abstract IEnumerable<IValueGetter<TRow>> ValueGetters();
     }
 }

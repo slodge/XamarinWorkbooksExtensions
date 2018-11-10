@@ -4,7 +4,7 @@ packages:
   version: 1.0.0
 uti: com.xamarin.workbook
 id: ebec55fb-e84d-49b1-8817-99ce312d751a
-title: table
+title: IEnumerable AsTable
 platforms:
 - Console
 ---

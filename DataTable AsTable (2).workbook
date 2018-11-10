@@ -1,0 +1,62 @@
+---
+packages:
+- id: Slodge.XamarinWorkbookExtensions
+  version: 1.0.0
+uti: com.xamarin.workbook
+id: ebec55fb-e84d-49b1-8817-99ce312d751a
+title: DataTable AsTable 2
+platforms:
+- Console
+---
+
+Add the Slodge extensions package:
+
+```csharp
+#r "Slodge.XamarinWorkbookExtensions"
+```
+
+Create a list of `Thing`s
+
+```csharp
+class Thing
+{
+    public string Name {get;set;}
+    public DateTime When {get;set;}
+}
+
+var list = new List<Thing>() {
+    new Thing() { When = DateTime.UtcNow.Date.AddDays(-1), Name = "Yesterday" },
+    new Thing() { When = DateTime.UtcNow.Date, Name = "Today" },
+    new Thing() { When = DateTime.UtcNow.Date.AddDays(+1), Name = "Tomorrow" },
+};
+```
+
+Convert the `List` to a `DataTable` using code from [https://stackoverflow.com/a/5805044](https://stackoverflow.com/a/5805044 "https://stackoverflow.com/a/5805044") (used under StackOverflow MIT licensing)
+
+```csharp
+using System.Data;
+using System.ComponentModel;
+public static DataTable ToDataTable<T>(this IList<T> data)
+{
+    var properties = TypeDescriptor.GetProperties(typeof(T));
+    DataTable table = new DataTable();
+    foreach (PropertyDescriptor prop in properties)
+        table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
+    foreach (T item in data)
+    {
+        DataRow row = table.NewRow();
+        foreach (PropertyDescriptor prop in properties)
+             row[prop.Name] = prop.GetValue(item) ?? DBNull.Value;
+        table.Rows.Add(row);
+    }
+    return table;
+}
+
+var table = list.ToDataTable();
+```
+
+That was ugly - let’s try it as a table:
+
+```csharp
+table.AsTable()
+```
