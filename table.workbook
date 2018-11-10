@@ -1,0 +1,38 @@
+---
+packages:
+- id: Slodge.XamarinWorkbookExtensions
+  version: 1.0.0
+uti: com.xamarin.workbook
+id: ebec55fb-e84d-49b1-8817-99ce312d751a
+title: table
+platforms:
+- Console
+---
+
+Add the Slodge extensions package:
+
+```csharp
+#r "Slodge.XamarinWorkbookExtensions"
+```
+
+Create a list of `Thing`s
+
+```csharp
+class Thing
+{
+    public string Name {get;set;}
+    public DateTime When {get;set;}
+}
+
+var list = new List<Thing>() {
+    new Thing() { When = DateTime.UtcNow.Date.AddDays(-1), Name = "Yesterday" },
+    new Thing() { When = DateTime.UtcNow.Date, Name = "Today" },
+    new Thing() { When = DateTime.UtcNow.Date.AddDays(+1), Name = "Tomorrow" },
+};
+```
+
+That was ugly - let’s try it as a table:
+
+```csharp
+list.AsTable()
+```

@@ -6,15 +6,17 @@ using System.Text;
 using Xamarin.Interactive;
 using Xamarin.Interactive.CodeAnalysis.Workbooks;
 
-// forgive me for invading your namespace ... but it helps the workbook work
+// Dear Xam, please forgive me for invading your namespace ...
+// ... but using your namespace helps the extension "just work"
+// ... and I would love to get `AsTable()` inside the workbooks
 namespace Xamarin.Interactive.CodeAnalysis.Workbooks
 {
-    public interface IFormatter
+    public interface IStringifier
     {
-        string Format(object o);
+        string Stringify(MemberInfo column, object o);
     }
 
-    public class DefaultFormatter : IFormatter
+    public class Stringifier : IStringifier
     {
         int _maxCellLength = 50;
 
@@ -29,7 +31,7 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             }
         }
 
-        public virtual string Format(object o)
+        public virtual string Stringify(MemberInfo column /* ignored */, object o)
         {
             var toReturn = InnerFormat(o);
             if (toReturn != null)
@@ -42,7 +44,7 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             return toReturn;
         }
 
-        static string InnerFormat(object o)
+        protected virtual string InnerFormat(object o)
         {
             switch (o)
             {
@@ -71,6 +73,7 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
     {
         string Title { get; }
         object GetValue(TItem item);
+        MemberInfo MemberInfo { get; }
     }
 
     class PropertyValueGetter<TItem>
@@ -82,6 +85,8 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
         {
             _propertyInfo = propertyInfo;
         }
+
+        public MemberInfo MemberInfo => _propertyInfo;
 
         public string Title => _propertyInfo.Name;
 
@@ -102,6 +107,8 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             _fieldInfo = fieldInfo;
         }
 
+        public MemberInfo MemberInfo => (_fieldInfo);
+
         public string Title => _fieldInfo.Name;
 
         public object GetValue(TItem item)
@@ -116,31 +123,37 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
         static IEnumerable<IValueGetter<TItem>> ValuesGetters<TItem>(bool includeProperties, bool includeFields)
         {
             var type = typeof(TItem);
+            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
             if (includeProperties)
-            {
-                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
-                foreach (var p in properties)
-                {
-                    yield return new PropertyValueGetter<TItem>(p);
-                }
-            }
+                flags |= BindingFlags.GetProperty;
             if (includeFields)
+                flags |= BindingFlags.GetField;
+
+            var members = type.GetMembers(flags);
+            foreach (var m in members)
             {
-                var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
-                foreach (var f in fields)
+                switch (m)
                 {
-                    yield return new FieldValueGetter<TItem>(f);
+                    case PropertyInfo p:
+                        yield return new PropertyValueGetter<TItem>(p);
+                        break;
+                    case FieldInfo f:
+                        yield return new FieldValueGetter<TItem>(f);
+                        break;
+                    default:
+                        // ignored...
+                        break;
                 }
             }
         }
 
-        public static Xamarin.Interactive.Representations.VerbatimHtml AsTable<T>(
+        public static Representations.VerbatimHtml AsTable<T>(
                             this IEnumerable<T> items,
                             int maxColumns = 10,
                             int maxRows = 10,
                             bool includeProperties = true,
                             bool includeFields = false,
-                            IFormatter formatter = null,
+                            IStringifier stringifier = null,
                             string customTableClassName = null,
                             string customCss = null)
         {
@@ -149,35 +162,41 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
                 return "-- null --".AsHtml();
             }
 
-            formatter = formatter ?? new DefaultFormatter();
+            stringifier = stringifier ?? new Stringifier();
+            customTableClassName = customTableClassName ?? "slodgeTable";
+            customCss = customCss ?? @"
+   .slodgeTable {{ border-collapse: collapse; }} 
+   .slodgeTable th {{ border: 0px solid #ddd; padding-left: 6px; padding-right: 6px; text-align:left; }} 
+   .slodgeTable td {{ border: 0px solid #ddd; padding-left: 6px; padding-right: 6px; text-align:left; }}
+";
 
             var getters = ValuesGetters<T>(includeProperties, includeFields).ToList();
-            var mainProperties = getters.Take(maxColumns).ToList();
-            var extraProperties = getters.Skip(maxColumns).ToList();
+            var shownColumns = getters.Take(maxColumns).ToList();
+            var overflowColumns = getters.Skip(maxColumns).ToList();
+
             var tableText = new System.Text.StringBuilder();
             tableText.Append($@"<style>  
-   .ourTable {{ border-collapse: collapse; }} 
-   .ourTable th {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }} 
-   .ourTable td {{ border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }}
     { customCss }
    </style>");
-            tableText.Append($"<table class='ourTable {customTableClassName}'>");
+
+            tableText.Append($"<table class='{customTableClassName}'>");
             tableText.Append("<thead><tr>");
             tableText.Append($"<th>#</th>");
-            foreach (var p in mainProperties)
+            foreach (var p in shownColumns)
             {
                 tableText.Append($"<th>{p.Title}</th>");
             }
             tableText.Append("</tr></thead>");
+
             tableText.Append("<tbody>");
             var rowCount = 0;
             foreach (var i in items.Take(maxRows))
             {
                 tableText.Append("<tr>");
                 tableText.Append($"<td>{rowCount}</td>");
-                foreach (var p in mainProperties)
+                foreach (var p in shownColumns)
                 {
-                    var t = formatter.Format(p.GetValue(i));
+                    var t = stringifier.Stringify(p.MemberInfo, p.GetValue(i));
                     tableText.Append($"<td>{t}</td>");
                 }
                 tableText.Append("</tr>");
@@ -186,30 +205,31 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
 
             if (rowCount >= maxRows)
             {
-                var colCount = mainProperties.Count();
-                var totalRowCount = SafeGetCount(items);
+                var colCount = shownColumns.Count();
+                var totalRowCount = ReadCountOrLengthPropertyIfAvailable(items);
                 if (totalRowCount != null)
                 {
                     if (totalRowCount.Value > rowCount)
                     {
-                        var remaining = totalRowCount.Value - rowCount;
-                        var overflowText = $"{remaining} more row{(remaining > 1 ? "s" : "")}";
-                        GenerateOverflowRow<T>(tableText, colCount, overflowText);
+                        var overflowRowCount = totalRowCount.Value - rowCount;
+                        var overflowRowText = $"{overflowRowCount} more row{(overflowRowCount > 1 ? "s" : "")}";
+                        GenerateOverflowRow<T>(tableText, colCount, overflowRowText);
                     }
                 }
                 else
                 {
-                    var overflowText = $"Enumeration limited to {rowCount} rows";
-                    GenerateOverflowRow<T>(tableText, colCount, overflowText);
+                    var overflowRowText = $"Enumeration limited to {rowCount} rows";
+                    GenerateOverflowRow<T>(tableText, colCount, overflowRowText);
                 }
             }
 
             tableText.Append("</tbody>");
             tableText.Append("</table>");
-            if (extraProperties.Any())
+
+            if (overflowColumns.Any())
             {
-                tableText.Append("<div>Other properties: ");
-                tableText.Append(string.Join(", ", extraProperties.Select(p => p.Title)));
+                tableText.Append("<div>Columns not shown: ");
+                tableText.Append(string.Join(", ", overflowColumns.Select(p => p.Title)));
                 tableText.Append("</div>");
             }
             return tableText.ToString().AsHtml();
@@ -223,17 +243,17 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             tableText.Append("</tr>");
         }
 
-        static int? SafeGetCount<T>(this IEnumerable<T> items)
+        static int? ReadCountOrLengthPropertyIfAvailable<T>(this IEnumerable<T> items)
         {
             if (items == null)
                 return null;
 
             var type = items.GetType();
-            var count = type.GetProperty("Count");
+            var count = type.GetProperty("Count", BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
             if (count != null && count.PropertyType == typeof(int))
                 return (int)count.GetValue(items);
 
-            var length = type.GetProperty("Length");
+            var length = type.GetProperty("Length", BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.Instance | BindingFlags.GetProperty);
             if (length != null && length.PropertyType == typeof(int))
                 return (int)length.GetValue(items);
 
