@@ -75,7 +75,6 @@ namespace Slodge.XamarinWorkbookExtensions
         }
     }
 
-
     public interface IValueGetter<in TItem>
     {
         string Title { get; }
@@ -123,6 +122,13 @@ namespace Slodge.XamarinWorkbookExtensions
             if (item == null) return null;
             return _fieldInfo.GetValue(item);
         }
+    }
+
+    public class ToStringValueGetter<T> : IValueGetter<T>
+    {
+        public string Title => "ToString";
+        public Type ValueType => typeof(String);
+        public object GetValue(T item) => item?.ToString();
     }
 
     public class DataTableTableGenerator
@@ -272,20 +278,32 @@ namespace Slodge.XamarinWorkbookExtensions
                 flags |= BindingFlags.GetField;
 
             var members = type.GetMembers(flags);
+            var numMembersReturned = 0;
             foreach (var m in members)
             {
                 switch (m)
                 {
                     case PropertyInfo p:
-                        yield return new PropertyValueGetter<TItem>(p);
+                        // exclude properties which need index access (especially `Item[]`)
+                        if (!p.GetIndexParameters().Any())
+                        {
+                            numMembersReturned++;
+                            yield return new PropertyValueGetter<TItem>(p);
+                        }
                         break;
                     case FieldInfo f:
+                        numMembersReturned++;
                         yield return new FieldValueGetter<TItem>(f);
                         break;
                     default:
                         // ignored...
                         break;
                 }
+            }
+
+            if (numMembersReturned == 0)
+            {
+                yield return new ToStringValueGetter<TItem>();
             }
         }
     }
