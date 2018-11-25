@@ -60,7 +60,7 @@ d.AsTable()
 
 To run this yourself, see [Dictionary Table Workbook](Dictionary_AsTable.workbook)
 
-![TableIntro](/docs/TableIntro.png)
+![DictionaryIntro](/docs/TableIntro_Dictionary.png)
 
 ### Advanced options:
 
