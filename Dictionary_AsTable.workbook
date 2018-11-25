@@ -1,0 +1,48 @@
+---
+uti: com.xamarin.workbook
+id: 04f9faca-3e26-4a39-97ae-863a148b7229
+title: DictionaryTable
+platforms:
+- Console
+packages:
+- id: Slodge.XamarinWorkbookExtensions
+  version: 1.0.4
+---
+
+```csharp
+#r "Slodge.XamarinWorkbookExtensions"
+```
+
+```csharp
+var d = new Dictionary<string, int>();
+d.Add("one", 1);
+d.Add("two", 2);
+d.Add("three", 3);
+d.AsTable()
+```
+
+```csharp
+public class Id {
+    public int Index {get;set;}
+    public string Name {get;set;}
+    public Id(int index, string name) {
+        Index = index;
+        Name = name;
+    }
+}
+
+public class Thingy{
+    public string More {get;set;}
+    public string Less {get;set;}
+    public Thingy(string m, string l) {
+        More = m;
+        Less = l;
+    }
+}
+var d = new Dictionary<Id,Thingy>();
+d.Add(new Id(1, "First"), new Thingy("bob", "Hi"));
+d.Add(new Id(2, "Second"), new Thingy("bob2", "2Hi"));
+d.Add(new Id(3, "Third"), new Thingy("bob3", "3Hi"));
+d.Add(new Id(4, "Fourth"), new Thingy("bob4", "4Hi"));
+d.AsTable()
+```

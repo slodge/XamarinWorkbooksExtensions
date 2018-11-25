@@ -29,6 +29,28 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
             return generator.GenerateHtml();
         }
 
+        public static VerbatimHtml AsTable<TKey, TValue>(
+            this IDictionary<TKey, TValue> items,
+            int maxColumns = 10,
+            int maxRows = 10,
+            bool includeProperties = true,
+            bool includeFields = false,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
+        {
+            var generator = new DictionaryTableGenerator<TKey, TValue>(
+                items,
+                includeProperties,
+                includeFields,
+                maxColumns,
+                maxRows,
+                stringifier,
+                customTableClassName,
+                customCss);
+            return generator.GenerateHtml();
+        }
+
         public static VerbatimHtml AsTable<T>(
             this IEnumerable<T> items,
             int maxColumns = 10,

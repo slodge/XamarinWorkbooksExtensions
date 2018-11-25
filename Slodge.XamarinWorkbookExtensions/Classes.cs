@@ -126,9 +126,14 @@ namespace Slodge.XamarinWorkbookExtensions
 
     public class ToStringValueGetter<T> : IValueGetter<T>
     {
-        public string Title => "ToString";
+        public string Title { get; }
         public Type ValueType => typeof(String);
         public object GetValue(T item) => item?.ToString();
+
+        public ToStringValueGetter(string title = "ToString")
+        {
+            Title = title;
+        }
     }
 
     public class DataTableTableGenerator
@@ -201,6 +206,80 @@ namespace Slodge.XamarinWorkbookExtensions
         }
     }
 
+
+    public class DictionaryTableGenerator<TKey, TValue>
+        : BaseTableGenerator<KeyValuePair<TKey, TValue>>
+    {
+        readonly IDictionary<TKey, TValue> _items;
+        readonly bool _includeProperties;
+        readonly bool _includeFields;
+
+        public DictionaryTableGenerator(
+            IDictionary<TKey, TValue> items,
+            bool includeProperties = true,
+            bool includeFields = false,
+            int maxColumns = 10,
+            int maxRows = 10,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
+            : base(maxColumns, maxRows, stringifier, customTableClassName, customCss)
+        {
+            _items = items;
+            _includeProperties = includeProperties;
+            _includeFields = includeFields;
+        }
+
+        protected override IEnumerable<KeyValuePair<TKey, TValue>> GetRows(int maxRows)
+        {
+            return _items?.Take(maxRows);
+        }
+
+        protected override bool IsNull => _items == null;
+
+        protected override int? TotalRowCountIfAvailable => _items?.Count;
+        
+        protected override IEnumerable<IValueGetter<KeyValuePair<TKey, TValue>>> ValueGetters()
+        {
+            foreach (var valueGetter in EnumerateValueGetters<TKey>(_includeProperties, _includeFields))
+                yield return new KeyWrappedValueGetter<TKey, TValue>(valueGetter);
+            foreach (var valueGetter in EnumerateValueGetters<TValue>(_includeProperties, _includeFields))
+                yield return new ValueWrappedValueGetter<TKey, TValue>(valueGetter);
+        }
+    }
+
+    public class ValueWrappedValueGetter<TKey, TValue>
+        : IValueGetter<KeyValuePair<TKey, TValue>>
+    {
+        readonly IValueGetter<TValue> _underlying;
+
+        public ValueWrappedValueGetter(IValueGetter<TValue> underlying)
+        {
+            _underlying = underlying;
+        }
+
+        public string Title => $"Value.{_underlying.Title}";
+        public Type ValueType => _underlying.ValueType;
+        public object GetValue(KeyValuePair<TKey, TValue> item)
+            => _underlying.GetValue(item.Value);
+    }
+
+    public class KeyWrappedValueGetter<TKey, TValue> 
+        : IValueGetter<KeyValuePair<TKey, TValue>>
+    {
+        readonly IValueGetter<TKey> _underlying;
+
+        public KeyWrappedValueGetter(IValueGetter<TKey> underlying)
+        {
+            _underlying = underlying;
+        }
+
+        public string Title => $"Key.{_underlying.Title}";
+        public Type ValueType => _underlying.ValueType;
+        public object GetValue(KeyValuePair<TKey, TValue> item)
+            => _underlying.GetValue(item.Key);
+    }
+
     public class EnumerableTableGenerator<TItem>
         : BaseTableGenerator<TItem>
     {
@@ -270,41 +349,8 @@ namespace Slodge.XamarinWorkbookExtensions
 
         protected override IEnumerable<IValueGetter<TItem>> ValueGetters()
         {
-            var type = typeof(TItem);
-            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
-            if (_includeProperties)
-                flags |= BindingFlags.GetProperty;
-            if (_includeFields)
-                flags |= BindingFlags.GetField;
-
-            var members = type.GetMembers(flags);
-            var numMembersReturned = 0;
-            foreach (var m in members)
-            {
-                switch (m)
-                {
-                    case PropertyInfo p:
-                        // exclude properties which need index access (especially `Item[]`)
-                        if (!p.GetIndexParameters().Any())
-                        {
-                            numMembersReturned++;
-                            yield return new PropertyValueGetter<TItem>(p);
-                        }
-                        break;
-                    case FieldInfo f:
-                        numMembersReturned++;
-                        yield return new FieldValueGetter<TItem>(f);
-                        break;
-                    default:
-                        // ignored...
-                        break;
-                }
-            }
-
-            if (numMembersReturned == 0)
-            {
-                yield return new ToStringValueGetter<TItem>();
-            }
+            foreach (var valueGetter in EnumerateValueGetters<TItem>(_includeProperties, _includeFields))
+                yield return valueGetter;
         }
     }
 
@@ -441,5 +487,75 @@ namespace Slodge.XamarinWorkbookExtensions
         protected abstract bool IsNull { get; }
         protected abstract int? TotalRowCountIfAvailable { get; }
         protected abstract IEnumerable<IValueGetter<TRow>> ValueGetters();
+
+        static HashSet<Type> SimpleNumericTypes = new HashSet<Type>()
+        {
+            typeof(bool),
+            typeof(char),
+            typeof(short),
+            typeof(int),
+            typeof(double),
+            typeof(float),
+            typeof(decimal),
+            typeof(bool?),
+            typeof(char?),
+            typeof(short?),
+            typeof(int?),
+            typeof(double?),
+            typeof(float?),
+            typeof(decimal?),
+        };
+
+        protected static IEnumerable<IValueGetter<T>> EnumerateValueGetters<T>(bool includeProperties, bool includeFields)
+        {
+            var type = typeof(T);
+            if (type == typeof(string))
+            {
+                yield return new ToStringValueGetter<T>("String");
+                yield break;
+            }
+
+            if (SimpleNumericTypes.Contains(type))
+            {
+                yield return new ToStringValueGetter<T>("Value");
+                yield break;
+            }
+
+            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
+            if (includeProperties)
+                flags |= BindingFlags.GetProperty;
+            if (includeFields)
+                flags |= BindingFlags.GetField;
+
+            var members = type.GetMembers(flags);
+            var numMembersReturned = 0;
+            foreach (var m in members)
+            {
+                switch (m)
+                {
+                    case PropertyInfo p:
+                        // exclude properties which need index access (especially `Item[]`)
+                        if (!p.GetIndexParameters().Any())
+                        {
+                            numMembersReturned++;
+                            yield return new PropertyValueGetter<T>(p);
+                        }
+
+                        break;
+                    case FieldInfo f:
+                        numMembersReturned++;
+                        yield return new FieldValueGetter<T>(f);
+                        break;
+                    default:
+                        // ignored...
+                        break;
+                }
+            }
+
+            if (numMembersReturned == 0)
+            {
+                yield return new ToStringValueGetter<T>();
+            }
+        }
     }
 }

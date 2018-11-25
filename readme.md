@@ -6,7 +6,7 @@ Everything here is MIT licensed - but I'm happy to adjust if an alternative woul
 
 ## AsTable()
 
-We've added two `AsTable()` extension method which render `IEnumerable<T>` and `DataTable` collections to HTML Tables.
+We've added two `AsTable()` extension method which render `IEnumerable<T>`, `IDictionary<TKey, TValue>`,  and `DataTable` collections to HTML Tables.
 
 ## Basic use `IEnumerable<T>`
 
@@ -47,6 +47,39 @@ These options are available
    .slodgeTable td { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }
 
 ```
+
+## Basic use `IDictionary<TKey, TValue>`
+
+```
+var d = new Dictionary<string, int>();
+d.Add("one", 1);
+d.Add("two", 2);
+d.Add("three", 3);
+d.AsTable()
+```
+
+To run this yourself, see [Dictionary Table Workbook](Dictionary_AsTable.workbook)
+
+![TableIntro](/docs/TableIntro.png)
+
+### Advanced options:
+
+These options are available
+- maxColumns - default `10` - the maximum number of properties/fields to show
+- maxRows - default `10` - the maximum number of rows to show
+- includeProperties - default `true` - should `public` Properties be shown
+- includeFields - default `false` - should `public` Fields be shown
+- stringifier - default `null` - provide an `IStringifier` implementation for custom cell text
+- customTableClassName - default `null` - provide a css class name for the table. If null, then "slodgeTable" is used
+- customCss - default `null` - provide css style for the table. If null, then the following CSS is inserted
+
+```
+   .slodgeTable { border-collapse: collapse; } 
+   .slodgeTable th { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; } 
+   .slodgeTable td { border: 0px solid #ddd; padding-left: 4px; padding-right: 4px; text-align:left; }
+
+```
+
 
 ## Basic use `DataTable`
 
