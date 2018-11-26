@@ -10,6 +10,42 @@ namespace Xamarin.Interactive.CodeAnalysis.Workbooks
     public static class SlodgeExtensions
     {
         public static Representations.VerbatimHtml AsTable(
+                this RowFrame table,
+                int maxColumns = 10,
+                int maxRows = 10,
+                IStringifier stringifier = null,
+                string customTableClassName = null,
+                string customCss = null)
+        {
+            var generator = new RowFrameTableGenerator(
+                table,
+                maxColumns,
+                maxRows,
+                stringifier,
+                customTableClassName,
+                customCss);
+            return generator.GenerateHtml();
+        }
+
+        public static Representations.VerbatimHtml AsTable(
+            this ColumnFrame table,
+            int maxColumns = 10,
+            int maxRows = 10,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
+        {
+            var generator = new ColumnFrameTableGenerator(
+                table,
+                maxColumns,
+                maxRows,
+                stringifier,
+                customTableClassName,
+                customCss);
+            return generator.GenerateHtml();
+        }
+
+        public static Representations.VerbatimHtml AsTable(
             this System.Data.DataTable table,
             int maxColumns = 10,
             int maxRows = 10,

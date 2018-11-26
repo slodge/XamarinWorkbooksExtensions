@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -10,6 +11,92 @@ using Xamarin.Interactive.Representations;
 
 namespace Slodge.XamarinWorkbookExtensions
 {
+    public class RowFrame
+    {
+        public List<List<string>> Rows = new List<List<string>>();
+
+        public void AddRowWithHeader(string header, params string[] items)
+        {
+            var list = new List<string>();
+            list.Add(header);
+            list.AddRange(items);
+            Rows.Add(list);
+        }
+
+        public void AddRow(params string[] items)
+        {
+            Rows.Add(items.ToList());
+        }
+    }
+
+    public class ColumnFrame
+    {
+        public List<List<string>> Columns = new List<List<string>>();
+
+        public void AddColumnWithHeader(string header, params string[] items)
+        {
+            var list = new List<string>();
+            list.Add(header);
+            list.AddRange(items);
+            Columns.Add(list);
+        }
+
+        public void AddColumn(params string[] items)
+        {
+            Columns.Add(items.ToList());
+        }
+
+        public IEnumerable<IList<string>> ToRows()
+        {
+            var enumerators = Columns
+                .Select(c => new SafeEnumerator(c.GetEnumerator())).ToList();
+            while (enumerators.Any(e => e.MoveNext()))
+            {
+                yield return enumerators.Select(e => e.Current).ToList();
+            }
+        }
+
+        private class SafeEnumerator : IEnumerator<string>
+        {
+            readonly IEnumerator<string> _inner;
+            bool _isBeyondEnd = false;
+            public SafeEnumerator(IEnumerator<string> inner)
+            {
+                _inner = inner;
+            }
+
+            public bool MoveNext()
+            {
+                if (_isBeyondEnd) return false;
+                var result = _inner.MoveNext();
+                _isBeyondEnd = !result;
+                return result;
+            }
+
+            public void Reset()
+            {
+                _inner.Reset();
+                _isBeyondEnd = false;
+            }
+
+            public string Current
+            {
+                get
+                {
+                    if (_isBeyondEnd) return null;
+                    return _inner.Current;
+                }
+            }
+
+            object IEnumerator.Current => Current;
+
+            public void Dispose()
+            {
+                _inner.Dispose();
+            }
+        }
+    }
+
     public interface IStringifier
     {
         string Stringify(string title, Type type, object o);
@@ -206,6 +293,90 @@ namespace Slodge.XamarinWorkbookExtensions
         }
     }
 
+    public class RowFrameTableGenerator
+        : BaseTableGenerator<IList<string>>
+    {
+        readonly RowFrame _rowFrame;
+
+        public RowFrameTableGenerator(RowFrame rowFrame,
+            int maxColumns = 10,
+            int maxRows = 10,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
+            : base(maxColumns, maxRows, stringifier, customTableClassName, customCss)
+        {
+            _rowFrame = rowFrame;
+        }
+
+        protected override IEnumerable<IList<string>> GetRows(int maxRows)
+        {
+            return _rowFrame.Rows;
+        }
+
+        protected override bool IsNull => _rowFrame == null;
+        protected override int? TotalRowCountIfAvailable => _rowFrame?.Rows?.Count;
+        protected override IEnumerable<IValueGetter<IList<string>>> ValueGetters()
+        {
+            var maxCount = _rowFrame.Rows.Max(r => r.Count);
+            for (var i = 0; i<maxCount; i++)
+            {
+                yield return new OptionalStringGetter(i);
+            }
+        }
+    }
+
+    public class ColumnFrameTableGenerator
+        : BaseTableGenerator<IList<string>>
+    {
+        readonly ColumnFrame _columnFrame;
+
+        public ColumnFrameTableGenerator(
+            ColumnFrame columnFrame,
+            int maxColumns = 10,
+            int maxRows = 10,
+            IStringifier stringifier = null,
+            string customTableClassName = null,
+            string customCss = null)
+            : base(maxColumns, maxRows, stringifier, customTableClassName, customCss)
+        {
+            _columnFrame = columnFrame;
+        }
+
+        protected override IEnumerable<IList<string>> GetRows(int maxRows)
+        {
+            return _columnFrame.ToRows();
+        }
+
+        protected override bool IsNull => _columnFrame == null;
+        protected override int? TotalRowCountIfAvailable => _columnFrame?.Columns.Max(c => c.Count);
+        protected override IEnumerable<IValueGetter<IList<string>>> ValueGetters()
+        {
+            var maxCount = _columnFrame.Columns.Count;
+            for (var i = 0; i < maxCount; i++)
+            {
+                yield return new OptionalStringGetter(i);
+            }
+        }
+    }
+    public class OptionalStringGetter : IValueGetter<IList<string>>
+    {
+        readonly int _index;
+
+        public OptionalStringGetter(int index)
+        {
+            _index = index;
+        }
+
+        public string Title => _index.ToString();
+        public Type ValueType => typeof(string);
+        public object GetValue(IList<string> item)
+        {
+            if (_index < item.Count)
+                return item[_index];
+            return null;
+        }
+    }
 
     public class DictionaryTableGenerator<TKey, TValue>
         : BaseTableGenerator<KeyValuePair<TKey, TValue>>
